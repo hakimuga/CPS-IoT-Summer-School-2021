@@ -1,0 +1,264 @@
+@cpp(src="ext-cpp/utilities.cpp,ext-cpp/trace_helper.cpp,ext-cpp/proba_helper.cpp",include="utilities.hpp,trace_helper.hpp,proba_helper.hpp")
+package ClockSynchronization
+
+    
+    extern function int resolvedPosition1(int function_param_0)
+    extern function int resolvedPosition2(int function_param_0)
+    extern function int resolvedPosition3(int function_param_0)
+
+    extern function int getPosition()
+    extern function int getInitialPosition()
+
+    extern function int inStorage (int function_param_0)
+    extern function int inUnload (int function_param_0)
+    extern function int inDocking (int function_param_0)
+
+    extern function int iobstacle (int function_param_0)
+
+    extern function int isDoor (int function_param_0)
+
+    extern function printf(string function_param_0, int  function_param_1)
+
+    extern function printf(string function_param_0, int function_param_1, int function_param_2)
+    
+
+
+
+
+
+    
+    port type Port_Silent ()
+    
+    port type Port_Robot_Position (int position)
+    
+    port type Port_Orchestrator (int position1, int position2, int position3)
+
+    
+    connector type connector_type_door (Port_Silent p1, Port_Silent p2, Port_Silent p3, Port_Silent p4)
+        define p1   p2'     p3'    p4'  
+        
+       	on p1 p2 
+	on p1 p3 
+	on p1 p4 
+    
+    end
+
+    
+    connector type connector_resolve_collision (Port_Robot_Position p1, Port_Robot_Position p2, Port_Robot_Position p3, Port_Orchestrator p4)
+        define (p1  p2 p3  p4 )
+    
+       	on p1 p2 p3  p4 up{} down {p4.position1 = p1.position;  p4.position2 = p2.position; p4.position3 = p3.position;}
+    end
+
+    
+    connector type connector_collision_resolved (Port_Robot_Position p1, Port_Robot_Position p2, Port_Robot_Position p3, Port_Orchestrator p4)
+        define (p1  p2 p3  p4 )
+    
+	on p1 p2 p3  p4 up{} down {p1.position =p4.position1 ;  p2.position = p4.position2;  p3.position = p4.position3;}
+    end
+
+    
+    atom type Orchestrator ()
+    
+        
+        data int position1
+        
+        data int position2
+        
+        data int position3
+    
+        
+        
+        export port Port_Orchestrator resolveCollision(position1, position2, position3)
+        
+        export port Port_Orchestrator collisionResolved(position1, position2, position3)
+
+        place init, Place2, Place3
+        initial to init
+            
+            on resolveCollision
+                from init
+                to Place2
+            
+            on collisionResolved
+                from Place3
+                to init
+            
+            internal
+                from Place2
+                to Place3
+                do {
+                        position1 = resolvedPosition1(position1);
+                        position2 = resolvedPosition2(position2);
+                        position3 = resolvedPosition3(position3);
+                }
+    
+    
+    end
+
+    
+    atom type Robot (int id)
+    
+        
+        data int position
+    
+        data int inStorage
+
+        data int inUnload 
+
+        data int inDocking 
+
+        data int isObstacle 
+
+        data int isDoor 
+
+        data int vid 
+
+        export port Port_Robot_Position resolveCollision(position)
+        
+        export port Port_Robot_Position collisionResolved(position)
+        
+        export port Port_Silent openDoor()
+        
+        port Port_Silent storageLocation()
+        
+        port Port_Silent dockingLocation()
+        
+        port Port_Silent unloadLocation()
+        
+        port Port_Silent doorDectected()
+        
+        place init, UNLOAD, DOCKING, STORAGE, OBSTACLE, DOOR, RESOLVECOLLISION
+
+        initial to init do{ 
+
+	position = getInitialPosition();
+
+	inStorage = 3;
+
+	inUnload = 2;
+
+	inDocking = 1;
+
+	isObstacle = 4;
+
+	isDoor = 5;
+
+	vid=id;
+
+	printf("var int r%d.p %d\n", vid, position);
+
+	}
+            
+            on storageLocation
+                from init
+                to STORAGE
+                provided ((inStorage  ==  position )) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            on dockingLocation
+                from init
+                to DOCKING
+                provided ((inDocking == position )) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            on unloadLocation
+                from init
+                to UNLOAD
+                provided ((inUnload == position)) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            on doorDectected
+                from OBSTACLE
+                to DOOR provided ( isDoor == position ) do{ printf("var int r%d.p %d\n", vid, position);}
+            
+            on resolveCollision
+                from OBSTACLE
+                to RESOLVECOLLISION provided ( isDoor !=position) do{ printf("var int r%d.p %d\n", vid, position);}
+            
+            on collisionResolved
+                from RESOLVECOLLISION
+                to init do{ printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from DOCKING
+                to UNLOAD
+                provided (inUnload==position) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from UNLOAD
+                to STORAGE
+                provided (inStorage == position ) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from STORAGE
+                to DOCKING
+                provided (inDocking == position ) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            on openDoor
+                from DOOR
+                to init do{ position = getInitialPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from UNLOAD
+                to OBSTACLE
+                provided ( (inUnload != position )  &&  (isObstacle <= position ) ) do{ printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from UNLOAD
+                to UNLOAD
+                provided ( ( inUnload == position )  &&  (isObstacle > position ) ) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from DOCKING
+                to OBSTACLE
+                provided ( (inDocking!=position)  &&  (isObstacle<=position) ) do{ printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from DOCKING
+                to DOCKING
+                provided ( (inDocking == position)  &&  (isObstacle>position) ) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from STORAGE
+                to OBSTACLE
+                provided ( (inStorage!=position)  &&  (isObstacle<=position) ) do{ printf("var int r%d.p %d\n", vid, position);}
+            
+            internal
+                from STORAGE
+                to STORAGE
+                provided ( (inStorage==position)  &&  (isObstacle>position) ) do{ position = getPosition(); printf("var int r%d.p %d\n", vid, position);}
+    
+    
+    end
+
+    
+    atom type Door ()
+    
+    
+        
+        
+        export port Port_Silent openDoor()
+        
+        place init
+        initial to init
+            
+            on openDoor
+                from init
+                to init
+    
+    
+    end
+
+    
+    compound type Compound ()
+    
+        component Door DoorInstance ()
+        component Robot Robot1 (1)
+        component Robot Robot2 (2)
+        component Robot Robot3 (3)
+        component Orchestrator OrchestratorInstance ()
+    
+        connector connector_type_door Connector1 (DoorInstance.openDoor, Robot1.openDoor, Robot3.openDoor, Robot2.openDoor)
+        connector connector_resolve_collision Connector2 (Robot1.resolveCollision, Robot2.resolveCollision, Robot3.resolveCollision, OrchestratorInstance.resolveCollision)
+        connector connector_collision_resolved Connector3 (Robot1.collisionResolved, Robot2.collisionResolved, Robot3.collisionResolved,OrchestratorInstance.collisionResolved)
+    
+    end
+end
